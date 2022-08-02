@@ -18,7 +18,6 @@ class CtParameter(yaml.YAMLObject):
     yaml_tag = u'!Parameters'
     def __init__(self, name):
         self.name = name
-        pass
     def method(self, arg):
         return True
 
@@ -52,28 +51,28 @@ try:
     for p in parameters:
         if args.verboseManifest:
             if hasattr(p,"Description"):
-                m.write("      # Description: " + p.Description + "\r\n")
+                m.write(f"      # Description: {p.Description}" + "\r\n")
             if hasattr(p,"AllowedPattern"):
-                m.write("      # AllowedPattern: " + p.AllowedPattern + "\r\n")
+                m.write(f"      # AllowedPattern: {p.AllowedPattern}" + "\r\n")
             if hasattr(p,"AllowedValues"):
                 m.write("      # AllowedValues: " + ' '.join(p.AllowedValues) + "\r\n")
             if hasattr(p,"ConstraintDescription"):
-                m.write("      # ConstraintDescription: " + p.ConstraintDescription + "\r\n")
+                m.write(f"      # ConstraintDescription: {p.ConstraintDescription}" + "\r\n")
             if hasattr(p,"MaxLength"):
-                m.write("      # MaxLength: " + p.MaxLength + "\r\n")
+                m.write(f"      # MaxLength: {p.MaxLength}" + "\r\n")
             if hasattr(p,"MaxValue"):
-                m.write("      # MaxValue: " + p.MaxValue + "\r\n")
+                m.write(f"      # MaxValue: {p.MaxValue}" + "\r\n")
             if hasattr(p,"MinLength"):
-                m.write("      # MinLength: " + p.MinLength + "\r\n")
+                m.write(f"      # MinLength: {p.MinLength}" + "\r\n")
             if hasattr(p,"MinValue"):
-                m.write("      # MinValue: " + p.MinValue + "\r\n")
+                m.write(f"      # MinValue: {p.MinValue}" + "\r\n")
             if hasattr(p,"NoEcho"):
-                m.write("      # NoEcho: " + p.NoEcho + "\r\n")
+                m.write(f"      # NoEcho: {p.NoEcho}" + "\r\n")
             if hasattr(p,"Type"):
-                m.write("      # Type: " + p.Type + "\r\n")
-        m.write("      - parameter_key: " + p.name + "\r\n")
+                m.write(f"      # Type: {p.Type}" + "\r\n")
+        m.write(f"      - parameter_key: {p.name}" + "\r\n")
         if hasattr(p,"Default"):
-                m.write("        parameter_value: " + p.Default + "\r\n")
+            m.write(f"        parameter_value: {p.Default}" + "\r\n")
         else:
             m.write("        parameter_value: \r\n")
     m.write("    deploy_method: stack_set\r\n")

@@ -50,16 +50,11 @@ def log_config(event, loglevel=None, botolevel=None):
 def send(event, context, response_status, response_data, physical_resource_id, logger, reason=None):
 
     response_url = event['ResponseURL']
-    logger.debug("CFN response URL: " + response_url)
+    logger.debug(f"CFN response URL: {response_url}")
 
-    response_body = dict()
-    response_body['Status'] = response_status
-    msg = 'See details in CloudWatch Log Stream: ' + context.log_stream_name
-    if not reason:
-        response_body['Reason'] = msg
-    else:
-        response_body['Reason'] = str(reason)[0:255] + '... ' + msg
-
+    response_body = {'Status': response_status}
+    msg = f'See details in CloudWatch Log Stream: {context.log_stream_name}'
+    response_body['Reason'] = str(reason)[:255] + '... ' + msg if reason else msg
     if physical_resource_id:
         response_body['PhysicalResourceId'] = physical_resource_id
     elif 'PhysicalResourceId' in event:
@@ -86,9 +81,9 @@ def send(event, context, response_status, response_data, physical_resource_id, l
         response = requests.put(response_url,
                                 data=json_response_body,
                                 headers=headers)
-        logger.info("CloudFormation returned status code: " + response.reason)
+        logger.info(f"CloudFormation returned status code: {response.reason}")
     except Exception as e:
-        logger.error("send(..) failed executing requests.put(..): " + str(e))
+        logger.error(f"send(..) failed executing requests.put(..): {str(e)}")
         raise
 
 
@@ -101,8 +96,10 @@ def timeout(event, context, logger):
 # Handler function
 def cfn_handler(event, context, create_func, update_func, delete_func, logger, init_failed):
 
-    logger.info("Lambda RequestId: %s CloudFormation RequestId: %s" %
-                (context.aws_request_id, event['RequestId']))
+    logger.info(
+        f"Lambda RequestId: {context.aws_request_id} CloudFormation RequestId: {event['RequestId']}"
+    )
+
 
     # Define an object to place any response information you would like to send
     # back to CloudFormation (these keys can then be used by Fn::GetAttr)
@@ -113,7 +110,7 @@ def cfn_handler(event, context, create_func, update_func, delete_func, logger, i
     # against the old id
     physical_resource_id = None
 
-    logger.debug("EVENT: " + json.dumps(event))
+    logger.debug(f"EVENT: {json.dumps(event)}")
     # handle init failures
     if init_failed:
         send(event, context, "FAILED", response_data, physical_resource_id, init_failed, logger)
@@ -126,7 +123,7 @@ def cfn_handler(event, context, create_func, update_func, delete_func, logger, i
 
     try:
         # Execute custom resource handlers
-        logger.info("Received a %s Request" % event['RequestType'])
+        logger.info(f"Received a {event['RequestType']} Request")
         if 'Poll' in event.keys():
             physical_resource_id, response_data = poll(event, context)
         elif event['RequestType'] == 'Create':
@@ -146,8 +143,6 @@ def cfn_handler(event, context, create_func, update_func, delete_func, logger, i
         else:
             logger.info("Stack operation still in progress, not sending any response to cfn")
 
-    # Catch any exceptions, log the stacktrace, send a failure back to
-    # CloudFormation and then raise an exception
     except Exception as e:
         reason = str(e)
         logger.error(e, exc_info=True)
@@ -208,14 +203,17 @@ def rand_string(l):
 
 
 def get_cfn_parameters(event):
-    params = []
-    for p in event['ResourceProperties']['CfnParameters'].keys():
-        params.append({"ParameterKey": p, "ParameterValue": event['ResourceProperties']['CfnParameters'][p]})
-    return params
+    return [
+        {
+            "ParameterKey": p,
+            "ParameterValue": event['ResourceProperties']['CfnParameters'][p],
+        }
+        for p in event['ResourceProperties']['CfnParameters'].keys()
+    ]
 
 
 def add_permission(context, rule_arn):
-    sid = 'QuickStartStackMaker-' + rand_string(8)
+    sid = f'QuickStartStackMaker-{rand_string(8)}'
     lambda_client.add_permission(
         FunctionName=context.function_name,
         StatementId=sid,
@@ -228,11 +226,11 @@ def add_permission(context, rule_arn):
 
 def put_rule():
     response = events_client.put_rule(
-        Name='QuickStartStackMaker-' + rand_string(8),
+        Name=f'QuickStartStackMaker-{rand_string(8)}',
         ScheduleExpression='rate(2 minutes)',
         State='ENABLED',
-
     )
+
     return response["RuleArn"]
 
 
@@ -245,10 +243,10 @@ def put_targets(func_name, event):
         Targets=[
             {
                 'Id': '1',
-                'Arn': 'arn:aws:lambda:%s:%s:function:%s' % (region, account_id, func_name),
-                'Input': json.dumps(event)
+                'Arn': f'arn:aws:lambda:{region}:{account_id}:function:{func_name}',
+                'Input': json.dumps(event),
             }
-        ]
+        ],
     )
 
 
@@ -353,15 +351,18 @@ def update(event, context):
     physical_resource_id = stack_id
     try:
         cfn_client.update_stack(
-            StackName=stack_id,
+            StackName=physical_resource_id,
             TemplateURL=event['ResourceProperties']['TemplateURL'],
             Parameters=get_cfn_parameters(event),
             Capabilities=cfn_capabilities,
-            Tags=[{
-                'Key': 'ParentStackId',
-                'Value': event['ResourceProperties']['ParentStackId']
-            }]
+            Tags=[
+                {
+                    'Key': 'ParentStackId',
+                    'Value': event['ResourceProperties']['ParentStackId'],
+                }
+            ],
         )
+
     except ClientError as e:
         if "No updates are to be performed" not in str(e):
             raise
@@ -392,9 +393,9 @@ def poll(event, context):
     stack = cfn_client.describe_stacks(StackName=stack_id)['Stacks'][0]
     response_data = {}
     if stack['StackStatus'] in cfn_states['failed']:
-        error = "Stack launch failed, status is %s" % stack['StackStatus']
+        error = f"Stack launch failed, status is {stack['StackStatus']}"
         if 'StackStatusReason' in stack.keys():
-            error = "Stack Failed: %s" % stack['StackStatusReason']
+            error = f"Stack Failed: {stack['StackStatusReason']}"
         raise Exception(error)
     elif stack['StackStatus'] in cfn_states['success']:
         if 'Outputs' in stack.keys():

@@ -12,7 +12,7 @@ def lambda_handler(event, context):
 
     try:
         # Log the received event
-        print(("Received event: " + json.dumps(event, indent=2)))
+        print(f"Received event: {json.dumps(event, indent=2)}")
 
         # Setup base response
         response = get_response_dict(event)
@@ -47,8 +47,13 @@ def lambda_handler(event, context):
                 print("---------")
                 traceback.print_exc()
                 print((repr(cleanup_exception)))
-                return send_response(event, response, "FAILED",
-                                     "Cleanup of Container image failed." + repr(cleanup_exception))
+                return send_response(
+                    event,
+                    response,
+                    "FAILED",
+                    f"Cleanup of Container image failed.{repr(cleanup_exception)}",
+                )
+
             # signal success to CFN
             return send_response(event, response)
         else:
@@ -57,8 +62,12 @@ def lambda_handler(event, context):
             print("ERROR: Expected - Create, Update, Delete")
     except Exception as unhandled:
         response = get_response_dict(event)
-        return send_response(event, response, "FAILED",
-                             "Unhandled exception, failing gracefully: " + str(unhandled))
+        return send_response(
+            event,
+            response,
+            "FAILED",
+            f"Unhandled exception, failing gracefully: {str(unhandled)}",
+        )
 
 
 def cleanup_images_repo(repository, account_id):
@@ -67,18 +76,17 @@ def cleanup_images_repo(repository, account_id):
     """
     ecr_client = boto3.client('ecr')
 
-    print(("Repo:" + repository + " AccountID:" + account_id))
+    print(f"Repo:{repository} AccountID:{account_id}")
     response = ecr_client.describe_images(
         registryId=account_id,
         repositoryName=repository
     )
-    image_ids = []
-    for imageDetail in response['imageDetails']:
-        image_ids.append(
-                {
-                    'imageDigest': imageDetail['imageDigest'],
-                }
-        )
+    image_ids = [
+        {
+            'imageDigest': imageDetail['imageDigest'],
+        }
+        for imageDetail in response['imageDetails']
+    ]
 
     if len(image_ids):
         # delete images
@@ -98,27 +106,27 @@ def execute_build(event):
     request_id = event["RequestId"]
     logical_resource_id = event["LogicalResourceId"]
     url = urllib.parse.urlparse(event['ResponseURL'])
-    response = build.start_build(
-        projectName=project_name, environmentVariablesOverride=[
+    return build.start_build(
+        projectName=project_name,
+        environmentVariablesOverride=[
             {'name': 'url_path', 'value': url.path},
             {'name': 'url_query', 'value': url.query},
             {'name': 'cfn_signal_url', 'value': signal_url},
             {'name': 'cfn_stack_id', 'value': stack_id},
             {'name': 'cfn_request_id', 'value': request_id},
-            {'name': 'cfn_logical_resource_id', 'value': logical_resource_id}
-        ])
-    return response
+            {'name': 'cfn_logical_resource_id', 'value': logical_resource_id},
+        ],
+    )
 
 
 def get_response_dict(event):
     """Setup Response object for CFN Signal."""
-    response = {
+    return {
         'StackId': event['StackId'],
         'RequestId': event['RequestId'],
         'LogicalResourceId': event['LogicalResourceId'],
-        'Status': 'SUCCESS'
+        'Status': 'SUCCESS',
     }
-    return response
 
 
 def send_response(event, response, status=None, reason=None):
@@ -133,7 +141,7 @@ def send_response(event, response, status=None, reason=None):
         url = urllib.parse.urlparse(event['ResponseURL'])
         body = json.dumps(response)
         https = http.client.HTTPSConnection(url.hostname)
-        https.request('PUT', url.path+'?'+url.query, body)
+        https.request('PUT', f'{url.path}?{url.query}', body)
         print("Sent CFN Response")
 
     return response
